@@ -32,18 +32,20 @@ export async function POST(request: NextRequest) {
 
     if (!tokenResponse.ok) {
       // Refresh token is invalid, clear cookies
-      cookieStore.delete("discord_access_token")
-      cookieStore.delete("discord_refresh_token")
-      cookieStore.delete("discord_user")
-      return NextResponse.json({ error: "Invalid refresh token" }, { status: 401 })
+      const response = NextResponse.json({ error: "Invalid refresh token" }, { status: 401 })
+      response.cookies.delete("discord_access_token")
+      response.cookies.delete("discord_refresh_token")
+      response.cookies.delete("discord_user")
+      return response
     }
 
     const tokens = await tokenResponse.json()
 
     // Update cookies with new tokens
     const maxAge = tokens.expires_in || 604800 // 7 days default
+    const response = NextResponse.json({ success: true })
 
-    cookieStore.set("discord_access_token", tokens.access_token, {
+    response.cookies.set("discord_access_token", tokens.access_token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
@@ -52,7 +54,7 @@ export async function POST(request: NextRequest) {
     })
 
     if (tokens.refresh_token) {
-      cookieStore.set("discord_refresh_token", tokens.refresh_token, {
+      response.cookies.set("discord_refresh_token", tokens.refresh_token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
         sameSite: "lax",
@@ -61,7 +63,7 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    return NextResponse.json({ success: true })
+    return response
   } catch (error) {
     console.error("Token refresh error:", error)
     return NextResponse.json({ error: "Failed to refresh token" }, { status: 500 })

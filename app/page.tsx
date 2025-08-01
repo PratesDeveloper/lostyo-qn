@@ -246,12 +246,14 @@ export default function LostyoLanding() {
     )
     document.head.appendChild(metaDescription)
 
-    // Favicon
-    const favicon = document.querySelector("link[rel*='icon']") || document.createElement("link")
-    favicon.type = "image/png"
-    favicon.rel = "shortcut icon"
-    favicon.href = "/lostyo-logo.png"
-    document.head.appendChild(favicon)
+   const favicon = (document.querySelector("link[rel*='icon']") as HTMLLinkElement) || document.createElement("link") as HTMLLinkElement;
+
+  favicon.type = "image/png";
+  favicon.rel = "shortcut icon";
+  favicon.href = "/lostyo-logo.png";
+
+  document.head.appendChild(favicon);
+
   }, [])
 
   useEffect(() => {

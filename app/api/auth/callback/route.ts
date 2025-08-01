@@ -1,5 +1,4 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { cookies } from "next/headers"
 
 const DISCORD_CONFIG = {
   clientId: process.env.NEXT_PUBLIC_DISCORD_CLIENT_ID!,
@@ -9,21 +8,21 @@ const DISCORD_CONFIG = {
 }
 
 export async function GET(request: NextRequest) {
-  const searchParams = request.nextUrl.searchParams
-  const code = searchParams.get("code")
-  const state = searchParams.get("state")
-  const error = searchParams.get("error")
-
-  // Handle OAuth errors
-  if (error) {
-    return NextResponse.redirect(new URL(`/dashboard?error=${encodeURIComponent(error)}`, request.url))
-  }
-
-  if (!code || !state) {
-    return NextResponse.redirect(new URL("/dashboard?error=missing_code", request.url))
-  }
-
   try {
+    const { searchParams } = new URL(request.url)
+    const code = searchParams.get("code")
+    const state = searchParams.get("state")
+    const error = searchParams.get("error")
+
+    if (error) {
+      console.error("OAuth error:", error)
+      return NextResponse.redirect(new URL("/?error=oauth_error", request.url))
+    }
+
+    if (!code || !state) {
+      return NextResponse.redirect(new URL("/?error=missing_params", request.url))
+    }
+
     // Exchange code for tokens
     const tokenResponse = await fetch(`${DISCORD_CONFIG.apiEndpoint}/oauth2/token`, {
       method: "POST",
@@ -40,12 +39,13 @@ export async function GET(request: NextRequest) {
     })
 
     if (!tokenResponse.ok) {
-      throw new Error("Failed to exchange code for token")
+      console.error("Token exchange failed:", await tokenResponse.text())
+      return NextResponse.redirect(new URL("/?error=token_exchange_failed", request.url))
     }
 
     const tokens = await tokenResponse.json()
 
-    // Get user data
+    // Fetch user data
     const userResponse = await fetch(`${DISCORD_CONFIG.apiEndpoint}/users/@me`, {
       headers: {
         Authorization: `Bearer ${tokens.access_token}`,
@@ -53,44 +53,44 @@ export async function GET(request: NextRequest) {
     })
 
     if (!userResponse.ok) {
-      throw new Error("Failed to fetch user data")
+      console.error("Failed to fetch user data")
+      return NextResponse.redirect(new URL("/?error=user_fetch_failed", request.url))
     }
 
     const userData = await userResponse.json()
 
-    // Set secure cookies
-    const cookieStore = await cookies()
-    const maxAge = tokens.expires_in || 604800 // 7 days default
+    // Set cookies
+    const response = NextResponse.redirect(new URL("/dashboard", request.url))
 
-    cookieStore.set("discord_access_token", tokens.access_token, {
+    response.cookies.set("discord_access_token", tokens.access_token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
-      maxAge,
+      maxAge: tokens.expires_in || 604800, // 7 days default
       path: "/",
     })
 
-    cookieStore.set("discord_refresh_token", tokens.refresh_token, {
+    if (tokens.refresh_token) {
+      response.cookies.set("discord_refresh_token", tokens.refresh_token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        maxAge: 30 * 24 * 60 * 60, // 30 days
+        path: "/",
+      })
+    }
+
+    response.cookies.set("discord_user", JSON.stringify(userData), {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
-      maxAge: 30 * 24 * 60 * 60, // 30 days
+      maxAge: 3600, // 1 hour
       path: "/",
     })
 
-    // Store user data in cookie for quick access
-    cookieStore.set("discord_user", JSON.stringify(userData), {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge,
-      path: "/",
-    })
-
-    // Redirect to dashboard
-    return NextResponse.redirect(new URL("/dashboard", request.url))
+    return response
   } catch (error) {
     console.error("OAuth callback error:", error)
-    return NextResponse.redirect(new URL("/dashboard?error=auth_failed", request.url))
+    return NextResponse.redirect(new URL("/?error=callback_error", request.url))
   }
 }

@@ -22,7 +22,7 @@ async function makeDiscordRequest(endpoint: string, accessToken: string) {
   return response.json()
 }
 
-export async function GET(req: NextRequest) {
+export async function GET(request: NextRequest) {
   try {
     const cookieStore = await cookies()
     const accessToken = cookieStore.get("discord_access_token")?.value
@@ -31,34 +31,35 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Not authenticated" }, { status: 401 })
     }
 
-    // Fetch user guilds from Discord
-    const userGuilds = await makeDiscordRequest("/users/@me/guilds", accessToken)
+    try {
+      // Fetch user's guilds
+      const guildsData = await makeDiscordRequest("/users/@me/guilds", accessToken)
 
-    // For now, we'll mock the bot presence data
-    // In a real implementation, you would check which guilds have your bot
-    const result = userGuilds.map((guild: any) => ({
-      id: guild.id,
-      name: guild.name,
-      icon: guild.icon,
-      iconUrl: guild.icon
-        ? `https://cdn.discordapp.com/icons/${guild.id}/${guild.icon}${guild.icon.startsWith("a_") ? ".gif" : ".png"}?size=128`
-        : null,
-      owner: guild.owner,
-      permissions: guild.permissions,
-      permissions_new: guild.permissions_new || guild.permissions,
-      features: guild.features || [],
-      hasBot: Math.random() > 0.5, // Mock data - replace with actual bot presence check
-      memberCount: Math.floor(Math.random() * 10000) + 100, // Mock data
-    }))
+      // Transform guild data to include additional properties
+      const transformedGuilds = guildsData.map((guild: any) => ({
+        id: guild.id,
+        name: guild.name,
+        icon: guild.icon,
+        iconUrl: guild.icon
+          ? `https://cdn.discordapp.com/icons/${guild.id}/${guild.icon}.${guild.icon.startsWith("a_") ? "gif" : "png"}?size=128`
+          : null,
+        owner: guild.owner,
+        permissions: guild.permissions,
+        permissions_new: guild.permissions_new || guild.permissions,
+        features: guild.features || [],
+        hasBot: false, // This would need to be checked separately
+        memberCount: guild.approximate_member_count || 0,
+      }))
 
-    return NextResponse.json(result)
+      return NextResponse.json(transformedGuilds)
+    } catch (error) {
+      if (error instanceof Error && error.message === "UNAUTHORIZED") {
+        return NextResponse.json({ error: "Authentication expired" }, { status: 401 })
+      }
+      throw error
+    }
   } catch (error) {
     console.error("Get guilds error:", error)
-
-    if (error instanceof Error && error.message === "UNAUTHORIZED") {
-      return NextResponse.json({ error: "Authentication expired" }, { status: 401 })
-    }
-
     return NextResponse.json({ error: "Failed to fetch guilds" }, { status: 500 })
   }
 }
