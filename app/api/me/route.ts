@@ -24,7 +24,7 @@ async function makeDiscordRequest(endpoint: string, accessToken: string) {
 
 export async function GET(request: NextRequest) {
   try {
-    const cookieStore = cookies()
+    const cookieStore = await cookies()
     const accessToken = cookieStore.get("discord_access_token")?.value
     const cachedUser = cookieStore.get("discord_user")?.value
 
@@ -38,6 +38,7 @@ export async function GET(request: NextRequest) {
         return NextResponse.json(JSON.parse(cachedUser))
       } catch (e) {
         // If cached data is corrupted, fetch fresh data
+        console.log("Cached user data corrupted, fetching fresh data")
       }
     }
 
@@ -46,7 +47,8 @@ export async function GET(request: NextRequest) {
       const userData = await makeDiscordRequest("/users/@me", accessToken)
 
       // Update cache
-      cookieStore.set("discord_user", JSON.stringify(userData), {
+      const response = NextResponse.json(userData)
+      response.cookies.set("discord_user", JSON.stringify(userData), {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
         sameSite: "lax",
@@ -54,24 +56,15 @@ export async function GET(request: NextRequest) {
         path: "/",
       })
 
-      return NextResponse.json(userData)
+      return response
     } catch (error) {
       if (error instanceof Error && error.message === "UNAUTHORIZED") {
-        // Try to refresh token
-        const refreshResponse = await fetch(new URL("/api/auth/refresh", request.url), {
-          method: "POST",
-        })
-
-        if (refreshResponse.ok) {
-          // Retry with new token
-          const newAccessToken = cookieStore.get("discord_access_token")?.value
-          if (newAccessToken) {
-            const userData = await makeDiscordRequest("/users/@me", newAccessToken)
-            return NextResponse.json(userData)
-          }
-        }
-
-        return NextResponse.json({ error: "Authentication expired" }, { status: 401 })
+        // Clear invalid tokens
+        const response = NextResponse.json({ error: "Authentication expired" }, { status: 401 })
+        response.cookies.delete("discord_access_token")
+        response.cookies.delete("discord_refresh_token")
+        response.cookies.delete("discord_user")
+        return response
       }
 
       throw error
