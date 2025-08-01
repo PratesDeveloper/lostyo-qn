@@ -24,7 +24,7 @@ async function makeDiscordRequest(endpoint: string, accessToken: string) {
 
 export async function GET(request: NextRequest) {
   try {
-    const cookieStore = await cookies()
+    const cookieStore = cookies()
     const accessToken = cookieStore.get("discord_access_token")?.value
     const cachedUser = cookieStore.get("discord_user")?.value
 
