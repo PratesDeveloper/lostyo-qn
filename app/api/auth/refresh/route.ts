@@ -8,19 +8,25 @@ const DISCORD_CONFIG = {
 }
 
 export async function POST(request: NextRequest) {
+  console.log('[AUTH] Token refresh requested')
+  
   try {
     const cookieStore = await cookies()
     const refreshToken = cookieStore.get("discord_refresh_token")?.value
 
     if (!refreshToken) {
+      console.log('[AUTH] No refresh token available')
       return NextResponse.json({ error: "No refresh token available" }, { status: 401 })
     }
+
+    console.log('[AUTH] Refreshing access token...')
 
     // Refresh the access token
     const tokenResponse = await fetch(`${DISCORD_CONFIG.apiEndpoint}/oauth2/token`, {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
+        "User-Agent": "LostyoBot/1.0",
       },
       body: new URLSearchParams({
         client_id: DISCORD_CONFIG.clientId,
@@ -31,6 +37,13 @@ export async function POST(request: NextRequest) {
     })
 
     if (!tokenResponse.ok) {
+      const errorText = await tokenResponse.text()
+      console.error('[AUTH] Token refresh failed:', {
+        status: tokenResponse.status,
+        statusText: tokenResponse.statusText,
+        error: errorText
+      })
+      
       // Refresh token is invalid, clear cookies
       const response = NextResponse.json({ error: "Invalid refresh token" }, { status: 401 })
       response.cookies.delete("discord_access_token")
@@ -40,32 +53,41 @@ export async function POST(request: NextRequest) {
     }
 
     const tokens = await tokenResponse.json()
+    console.log('[AUTH] Token refresh successful')
 
     // Update cookies with new tokens
     const maxAge = tokens.expires_in || 604800 // 7 days default
     const response = NextResponse.json({ success: true })
 
-    response.cookies.set("discord_access_token", tokens.access_token, {
+    const isProduction = process.env.NODE_ENV === "production"
+    const cookieOptions = {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge,
+      secure: isProduction,
+      sameSite: "lax" as const,
       path: "/",
+    }
+
+    response.cookies.set("discord_access_token", tokens.access_token, {
+      ...cookieOptions,
+      maxAge,
     })
 
     if (tokens.refresh_token) {
       response.cookies.set("discord_refresh_token", tokens.refresh_token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
+        ...cookieOptions,
         maxAge: 30 * 24 * 60 * 60, // 30 days
-        path: "/",
       })
     }
 
     return response
   } catch (error) {
-    console.error("Token refresh error:", error)
-    return NextResponse.json({ error: "Failed to refresh token" }, { status: 500 })
+    console.error('[AUTH] Token refresh error:', error)
+    
+    let errorMessage = "Failed to refresh token"
+    if (error instanceof Error) {
+      errorMessage = error.message
+    }
+    
+    return NextResponse.json({ error: errorMessage }, { status: 500 })
   }
 }

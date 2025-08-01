@@ -6,87 +6,81 @@ const DISCORD_CONFIG = {
 }
 
 async function makeDiscordRequest(endpoint: string, accessToken: string) {
-  console.log('[DEBUG] Making Discord request to:', endpoint)
-  console.log('[DEBUG] Access token:', accessToken ? `${accessToken.substring(0, 5)}...` : 'MISSING')
+  console.log('[API] Making Discord request to:', endpoint)
+  
+  const response = await fetch(`${DISCORD_CONFIG.apiEndpoint}${endpoint}`, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "User-Agent": "LostyoBot/1.0",
+      "Content-Type": "application/json",
+    },
+  })
 
-  try {
-    const response = await fetch(`${DISCORD_CONFIG.apiEndpoint}${endpoint}`, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
+  if (!response.ok) {
+    console.error('[API] Discord API Error:', {
+      status: response.status,
+      statusText: response.statusText,
+      endpoint,
     })
 
-    if (!response.ok) {
-      let errorBody = {}
-      try {
-        errorBody = await response.json()
-      } catch (e) {
-        console.error('[DEBUG] Failed to parse error response:', e)
-      }
-      
-      console.error('[DEBUG] Discord API Error:', {
-        status: response.status,
-        statusText: response.statusText,
-        url: response.url,
-        headers: Object.fromEntries(response.headers.entries()),
-        errorBody,
-      })
-
-      if (response.status === 401) {
-        throw new Error("UNAUTHORIZED")
-      }
-      throw new Error(`Discord API Error: ${response.status}`)
+    if (response.status === 401) {
+      throw new Error("UNAUTHORIZED")
     }
-
-    return response.json()
-  } catch (error) {
-    console.error('[DEBUG] Request failed:', error)
-    throw error
+    
+    let errorMessage = `Discord API Error: ${response.status}`
+    try {
+      const errorData = await response.json()
+      errorMessage = errorData.message || errorMessage
+    } catch (e) {
+      // Response is not JSON
+    }
+    
+    throw new Error(errorMessage)
   }
+
+  return response.json()
 }
 
 export async function GET(request: NextRequest) {
-  console.log('[DEBUG] /api/user request started')
+  console.log('[API] /api/me request started')
   
   try {
     const cookieStore = await cookies()
     const accessToken = cookieStore.get("discord_access_token")?.value
-    const refreshToken = cookieStore.get("discord_refresh_token")?.value
     const cachedUser = cookieStore.get("discord_user")?.value
 
-    console.log('[DEBUG] Cookie check:', {
+    console.log('[API] Cookie check:', {
       hasAccessToken: !!accessToken,
-      hasRefreshToken: !!refreshToken,
       hasCachedUser: !!cachedUser,
-      allCookies: cookieStore.getAll().map(c => c.name)
     })
 
     if (!accessToken) {
-      console.error('[DEBUG] 401: No access token in cookies')
+      console.log('[API] No access token found')
       return NextResponse.json(
         { error: "Not authenticated", code: "NO_ACCESS_TOKEN" }, 
         { status: 401 }
       )
     }
 
-    // Return cached user if available
+    // Return cached user if available and valid
     if (cachedUser) {
       try {
-        console.log('[DEBUG] Returning cached user data')
-        return NextResponse.json(JSON.parse(cachedUser))
+        const userData = JSON.parse(cachedUser)
+        console.log('[API] Returning cached user data for:', userData.username)
+        return NextResponse.json(userData)
       } catch (e) {
-        console.error('[DEBUG] Cached user data corrupted:', e)
+        console.warn('[API] Cached user data corrupted, fetching fresh data')
       }
     }
 
     try {
-      console.log('[DEBUG] Fetching fresh user data from Discord')
+      console.log('[API] Fetching fresh user data from Discord')
       const userData = await makeDiscordRequest("/users/@me", accessToken)
 
-      console.log('[DEBUG] User data fetched successfully:', {
+      console.log('[API] User data fetched successfully:', {
         id: userData.id,
         username: userData.username,
+        global_name: userData.global_name,
       })
 
       // Update cache
@@ -95,62 +89,44 @@ export async function GET(request: NextRequest) {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
         sameSite: "lax",
-        maxAge: 3600,
+        maxAge: 3600, // 1 hour
         path: "/",
       })
 
       return response
     } catch (error) {
       if (error instanceof Error && error.message === "UNAUTHORIZED") {
-        console.error('[DEBUG] 401 Unauthorized - Potential causes:', {
-          tokenExpired: true,
-          tokenInvalid: true,
-          environment: {
-            NODE_ENV: process.env.NODE_ENV,
-            VERCEL: process.env.VERCEL,
-            DISCORD_CLIENT_ID: process.env.DISCORD_CLIENT_ID ? "set" : "not set",
-            DISCORD_CLIENT_SECRET: process.env.DISCORD_CLIENT_SECRET ? "set" : "not set",
-          },
-          requestDetails: {
-            url: request.url,
-            method: request.method,
-            headers: Object.fromEntries(request.headers.entries()),
-          }
-        })
-
-        // Clear invalid tokens
+        console.log('[API] Token expired/invalid, clearing auth cookies')
+        
         const response = NextResponse.json(
           { 
             error: "Authentication expired", 
-            code: "TOKEN_EXPIRED_OR_INVALID",
-            solution: "Reauthenticate with Discord"
+            code: "TOKEN_EXPIRED_OR_INVALID"
           }, 
           { status: 401 }
         )
         
+        // Clear invalid tokens
         response.cookies.delete("discord_access_token")
         response.cookies.delete("discord_refresh_token")
         response.cookies.delete("discord_user")
         
-        console.log('[DEBUG] Cleared auth cookies due to 401')
         return response
       }
 
-      console.error('[DEBUG] Unexpected error:', error)
       throw error
     }
   } catch (error) {
-    console.error('[DEBUG] Critical error:', {
-      error: error instanceof Error ? {
-        name: error.name,
-        message: error.message,
-        stack: error.stack
-      } : error
-    })
+    console.error('[API] Unexpected error in /api/me:', error)
+    
+    let errorMessage = "Failed to fetch user data"
+    if (error instanceof Error) {
+      errorMessage = error.message
+    }
     
     return NextResponse.json(
       { 
-        error: "Failed to fetch user data",
+        error: errorMessage,
         code: "SERVER_ERROR"
       }, 
       { status: 500 }

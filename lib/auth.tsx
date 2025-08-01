@@ -14,6 +14,7 @@ export interface User {
   mfa_enabled?: boolean
   premium_type?: number
   public_flags?: number
+  global_name?: string
 }
 
 export interface Guild {
@@ -34,10 +35,12 @@ export interface AuthContextType {
   guilds: Guild[]
   isLoading: boolean
   isAuthenticated: boolean
+  error: string | null
   login: () => void
   logout: () => Promise<void>
   refreshUser: () => Promise<void>
   refreshGuilds: () => Promise<void>
+  clearError: () => void
 }
 
 // Discord OAuth2 Configuration
@@ -59,27 +62,54 @@ export const getAvatarUrl = (userId: string, avatarHash: string | null, size = 1
   return `https://cdn.discordapp.com/avatars/${userId}/${avatarHash}.${avatarHash.startsWith("a_") ? "gif" : "png"}?size=${size}`
 }
 
-// API Functions
+// API Functions with better error handling
 class SecureAPI {
-  static async makeRequest(endpoint: string, options: RequestInit = {}): Promise<any> {
-    const response = await fetch(endpoint, {
-      ...options,
-      credentials: "include",
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    })
-
+  private static async handleResponse(response: Response): Promise<any> {
+    const contentType = response.headers.get("content-type")
+    const isJson = contentType && contentType.includes("application/json")
+    
     if (!response.ok) {
+      let errorMessage = `HTTP ${response.status}: ${response.statusText}`
+      
+      if (isJson) {
+        try {
+          const errorData = await response.json()
+          errorMessage = errorData.error || errorData.message || errorMessage
+        } catch (e) {
+          console.warn("Failed to parse error response as JSON")
+        }
+      }
+      
       if (response.status === 401) {
         throw new Error("UNAUTHORIZED")
       }
-      const errorData = await response.json().catch(() => ({}))
-      throw new Error(errorData.error || `API Error: ${response.status}`)
+      
+      throw new Error(errorMessage)
     }
 
-    return response.json()
+    if (isJson) {
+      return response.json()
+    }
+    
+    return response.text()
+  }
+
+  static async makeRequest(endpoint: string, options: RequestInit = {}): Promise<any> {
+    try {
+      const response = await fetch(endpoint, {
+        ...options,
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          ...options.headers,
+        },
+      })
+
+      return await this.handleResponse(response)
+    } catch (error) {
+      console.error(`API request failed for ${endpoint}:`, error)
+      throw error
+    }
   }
 
   static async getCurrentUser(): Promise<User> {
@@ -105,15 +135,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [guilds, setGuilds] = useState<Guild[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   // Check if user is authenticated on mount
   useEffect(() => {
     checkAuthStatus()
   }, [])
 
+  const clearError = () => setError(null)
+
   const checkAuthStatus = async () => {
     try {
       setIsLoading(true)
+      setError(null)
+      
       const userData = await SecureAPI.getCurrentUser()
       setUser(userData)
       setIsAuthenticated(true)
@@ -122,6 +157,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loadGuilds()
     } catch (error) {
       console.error("Auth check failed:", error)
+      
+      if (error instanceof Error) {
+        if (error.message === "UNAUTHORIZED") {
+          // Token expired or invalid - clear auth state
+          setUser(null)
+          setGuilds([])
+          setIsAuthenticated(false)
+          setError(null) // Don't show error for expired tokens
+        } else {
+          setError(`Falha na autenticação: ${error.message}`)
+        }
+      } else {
+        setError("Erro desconhecido na autenticação")
+      }
+      
       setUser(null)
       setGuilds([])
       setIsAuthenticated(false)
@@ -136,66 +186,106 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setGuilds(guildsData)
     } catch (error) {
       console.error("Failed to load guilds:", error)
+      // Don't set error state for guild loading failures
+      // as user is still authenticated
     }
   }
 
   const login = () => {
     if (!DISCORD_CONFIG.clientId || !DISCORD_CONFIG.redirectUri) {
-      console.error(
-        "Discord OAuth2 not configured. Please set NEXT_PUBLIC_DISCORD_CLIENT_ID and NEXT_PUBLIC_DISCORD_REDIRECT_URI environment variables.",
+      setError(
+        "Configuração OAuth2 do Discord não encontrada. Verifique as variáveis de ambiente NEXT_PUBLIC_DISCORD_CLIENT_ID e NEXT_PUBLIC_DISCORD_REDIRECT_URI."
       )
       return
     }
 
-    const state = Math.random().toString(36).substring(2, 15)
-    sessionStorage.setItem("oauth_state", state)
+    try {
+      clearError()
+      const state = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)
+      
+      // Store state in sessionStorage for validation
+      sessionStorage.setItem("oauth_state", state)
 
-    const params = new URLSearchParams({
-      client_id: DISCORD_CONFIG.clientId,
-      redirect_uri: DISCORD_CONFIG.redirectUri,
-      response_type: "code",
-      scope: DISCORD_CONFIG.scope,
-      state,
-    })
+      const params = new URLSearchParams({
+        client_id: DISCORD_CONFIG.clientId,
+        redirect_uri: DISCORD_CONFIG.redirectUri,
+        response_type: "code",
+        scope: DISCORD_CONFIG.scope,
+        state,
+        prompt: "consent", // Force consent to ensure fresh tokens
+      })
 
-    window.location.href = `https://discord.com/api/oauth2/authorize?${params}`
+      window.location.href = `https://discord.com/api/oauth2/authorize?${params}`
+    } catch (error) {
+      console.error("Login initiation failed:", error)
+      setError("Falha ao iniciar login com Discord")
+    }
   }
 
   const logout = async () => {
     try {
+      setIsLoading(true)
+      clearError()
+      
       await SecureAPI.logout()
+      
+      // Clear all auth state
       setUser(null)
       setGuilds([])
       setIsAuthenticated(false)
+      
+      // Clear session storage
       sessionStorage.removeItem("oauth_state")
+      
+      // Redirect to home page
+      window.location.href = "/"
     } catch (error) {
       console.error("Logout failed:", error)
+      
       // Force logout even if API call fails
       setUser(null)
       setGuilds([])
       setIsAuthenticated(false)
+      sessionStorage.removeItem("oauth_state")
+      
+      if (error instanceof Error) {
+        setError(`Erro no logout: ${error.message}`)
+      }
+    } finally {
+      setIsLoading(false)
     }
   }
 
   const refreshUser = async () => {
     try {
+      clearError()
       const userData = await SecureAPI.getCurrentUser()
       setUser(userData)
+      setIsAuthenticated(true)
     } catch (error) {
       console.error("Failed to refresh user:", error)
+      
       if (error instanceof Error && error.message === "UNAUTHORIZED") {
         setUser(null)
         setIsAuthenticated(false)
+        setGuilds([])
+      } else if (error instanceof Error) {
+        setError(`Erro ao atualizar usuário: ${error.message}`)
       }
     }
   }
 
   const refreshGuilds = async () => {
     try {
+      clearError()
       const guildsData = await SecureAPI.getUserGuilds()
       setGuilds(guildsData)
     } catch (error) {
       console.error("Failed to refresh guilds:", error)
+      
+      if (error instanceof Error) {
+        setError(`Erro ao carregar servidores: ${error.message}`)
+      }
     }
   }
 
@@ -204,10 +294,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     guilds,
     isLoading,
     isAuthenticated,
+    error,
     login,
     logout,
     refreshUser,
     refreshGuilds,
+    clearError,
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

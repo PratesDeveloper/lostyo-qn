@@ -8,6 +8,8 @@ const DISCORD_CONFIG = {
 }
 
 export async function POST(request: NextRequest) {
+  console.log('[AUTH] Logout requested')
+  
   try {
     const cookieStore = await cookies()
     const accessToken = cookieStore.get("discord_access_token")?.value
@@ -15,10 +17,12 @@ export async function POST(request: NextRequest) {
     // Revoke Discord token if available
     if (accessToken) {
       try {
-        await fetch(`${DISCORD_CONFIG.apiEndpoint}/oauth2/token/revoke`, {
+        console.log('[AUTH] Revoking Discord token...')
+        const revokeResponse = await fetch(`${DISCORD_CONFIG.apiEndpoint}/oauth2/token/revoke`, {
           method: "POST",
           headers: {
             "Content-Type": "application/x-www-form-urlencoded",
+            "User-Agent": "LostyoBot/1.0",
           },
           body: new URLSearchParams({
             client_id: DISCORD_CONFIG.clientId,
@@ -26,20 +30,37 @@ export async function POST(request: NextRequest) {
             token: accessToken,
           }),
         })
+
+        if (revokeResponse.ok) {
+          console.log('[AUTH] Discord token revoked successfully')
+        } else {
+          console.warn('[AUTH] Failed to revoke Discord token:', revokeResponse.status)
+        }
       } catch (error) {
-        console.error("Failed to revoke Discord token:", error)
+        console.error('[AUTH] Failed to revoke Discord token:', error)
+        // Continue with logout even if revocation fails
       }
     }
 
     // Clear all cookies
     const response = NextResponse.json({ success: true })
+    
+    // Delete auth cookies
     response.cookies.delete("discord_access_token")
     response.cookies.delete("discord_refresh_token")
     response.cookies.delete("discord_user")
 
+    console.log('[AUTH] Logout successful, cookies cleared')
     return response
   } catch (error) {
-    console.error("Logout error:", error)
-    return NextResponse.json({ error: "Failed to logout" }, { status: 500 })
+    console.error('[AUTH] Logout error:', error)
+    
+    // Even if there's an error, try to clear cookies
+    const response = NextResponse.json({ error: "Logout failed, but cookies cleared" }, { status: 500 })
+    response.cookies.delete("discord_access_token")
+    response.cookies.delete("discord_refresh_token")
+    response.cookies.delete("discord_user")
+    
+    return response
   }
 }
