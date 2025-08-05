@@ -12,8 +12,7 @@ export const metadata: Metadata = {
     "Transform your Discord server with Lostyo - the ultimate bot for moderation, music, games, and community engagement.",
   icons: {
     icon: "/lostyo-logo.png",
-  },
-    generator: 'v0.dev'
+  }
 }
 
 export default function RootLayout({
