@@ -26,7 +26,6 @@ export default function Dashboard() {
   const [isRefreshing, setIsRefreshing] = useState(false)
 
   useEffect(() => {
-    // If not loading and not authenticated, redirect to login
     if (!isLoading && !isAuthenticated) {
       login()
     }
@@ -43,15 +42,6 @@ export default function Dashboard() {
     }
   }
 
-  const handleLogout = async () => {
-    try {
-      await logout()
-    } catch (error) {
-      console.error("Logout failed:", error)
-    }
-  }
-
-  // Loading state
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-950 via-black to-gray-900 text-white">
@@ -79,7 +69,6 @@ export default function Dashboard() {
     )
   }
 
-  // Error state
   if (error) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-950 via-black to-gray-900 text-white flex items-center justify-center">
@@ -97,11 +86,8 @@ export default function Dashboard() {
               </AlertDescription>
             </Alert>
             <div className="flex gap-2">
-              <Button onClick={clearError} variant="outline" className="flex-1">
+              <Button onClick={() => { clearError(); login(); }} variant="outline" className="flex-1">
                 Tentar Novamente
-              </Button>
-              <Button onClick={login} className="flex-1 bg-[#5865f2] hover:bg-[#4752c4]">
-                Fazer Login
               </Button>
             </div>
           </CardContent>
@@ -109,8 +95,7 @@ export default function Dashboard() {
       </div>
     )
   }
-
-  // Not authenticated state
+  
   if (!isAuthenticated || !user) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-950 via-black to-gray-900 text-white flex items-center justify-center">
@@ -133,14 +118,6 @@ export default function Dashboard() {
     )
   }
 
-  const getAvatarUrl = (userId: string, avatarHash: string | null) => {
-    if (!avatarHash) {
-      const defaultAvatarNumber = Number.parseInt(userId) % 5
-      return `https://cdn.discordapp.com/embed/avatars/${defaultAvatarNumber}.png`
-    }
-    return `https://cdn.discordapp.com/avatars/${userId}/${avatarHash}.${avatarHash.startsWith("a_") ? "gif" : "png"}?size=128`
-  }
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-950 via-black to-gray-900 text-white">
       <div className="container mx-auto px-4 py-8">
@@ -148,12 +125,12 @@ export default function Dashboard() {
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-4">
             <Avatar className="w-12 h-12">
-              <AvatarImage src={getAvatarUrl(user.id, user.avatar)} alt={user.username} />
-              <AvatarFallback>{user.username.charAt(0).toUpperCase()}</AvatarFallback>
+              <AvatarImage src={user.image} alt={user.name} />
+              <AvatarFallback>{user.name?.charAt(0).toUpperCase()}</AvatarFallback>
             </Avatar>
             <div>
               <h1 className="text-2xl font-bold">
-                Olá, {user.global_name || user.username}!
+                Olá, {user.global_name || user.name}!
               </h1>
               <p className="text-gray-400">
                 Bem-vindo ao dashboard do Lostyo Bot
@@ -173,7 +150,7 @@ export default function Dashboard() {
               Atualizar
             </Button>
             <Button
-              onClick={handleLogout}
+              onClick={logout}
               variant="outline"
               size="sm"
               className="border-red-500/20 hover:bg-red-500/10 text-red-400"
@@ -293,7 +270,8 @@ export default function Dashboard() {
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-1 text-sm text-gray-400">
                           <Users className="w-4 h-4" />
-                          {guild.memberCount.toLocaleString()} membros
+                          {/* guild.memberCount pode não estar disponível, então faremos uma verificação */}
+                          {guild.memberCount ? `${guild.memberCount.toLocaleString()} membros` : ''}
                         </div>
                         <div className="flex gap-1">
                           {guild.hasBot ? (
