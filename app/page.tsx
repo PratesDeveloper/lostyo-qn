@@ -36,10 +36,11 @@ const Particles = () => {
   >([])
 
   const [stats, setStats] = useState({
-      users: 0,
-      servers: 0,
-      votes: 0,
-    });
+    users: 0,
+    servers: 0,
+    votes: 0,
+  });
+
     
     useEffect(() => {
       fetch("/api/bot/status")
@@ -535,25 +536,26 @@ export default function LostyoLanding() {
                 </div>
 
                 {/* Stats mini display */}
-                <div className="mt-12 flex flex-col sm:flex-row justify-center items-center gap-8 text-center">
-                  <div className="flex items-center space-x-2">
-                    <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                    <span className="text-gray-400 text-sm">
-                      {Math.floor(stats.users / 1000).toLocaleString()}K+ Active Users
-                    </span>
+                {stats && (
+                  <div className="mt-12 flex flex-col sm:flex-row justify-center items-center gap-8 text-center">
+                    <div className="flex items-center space-x-2">
+                      <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                      <span className="text-gray-400 text-sm">
+                        {Math.floor(stats.users / 1000).toLocaleString()}K+ Active Users
+                      </span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse delay-500"></div>
+                      <span className="text-gray-400 text-sm">
+                        {Math.floor(stats.servers / 1000).toLocaleString()}K+ Servers
+                      </span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <div className="w-2 h-2 bg-red-400 rounded-full animate-pulse delay-1000"></div>
+                      <span className="text-gray-400 text-sm">99.9% Uptime</span>
+                    </div>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse delay-500"></div>
-                    <span className="text-gray-400 text-sm">
-                      {Math.floor(stats.servers / 1000).toLocaleString()}K+ Servers
-                    </span>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <div className="w-2 h-2 bg-red-400 rounded-full animate-pulse delay-1000"></div>
-                    <span className="text-gray-400 text-sm">99.9% Uptime</span>
-                  </div>
-                </div>
-              </div>
+                )}
             </div>
           </div>
         </div>
