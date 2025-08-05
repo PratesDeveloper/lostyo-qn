@@ -35,6 +35,28 @@ const Particles = () => {
     }>
   >([])
 
+  const [stats, setStats] = useState({
+      users: 0,
+      servers: 0,
+      votes: 0,
+    });
+    
+    useEffect(() => {
+      fetch("/api/bot/status")
+        .then((res) => res.json())
+        .then((data) => {
+          setStats({
+            users: data.users,
+            servers: data.servers,
+            votes: data.votes,
+          });
+        })
+        .catch((err) => {
+          console.error("Erro ao buscar status do bot:", err);
+        });
+    }, []);
+
+
   useEffect(() => {
     const colors = ["#5865f2", "#ffffff", "#8b9cff", "#c7d2fe", "#a78bfa", "#f472b6"]
     const generateParticles = () => {
@@ -309,7 +331,7 @@ export default function LostyoLanding() {
               className="group w-full sm:w-auto bg-gradient-to-r from-[#5865f2]/90 via-[#4752c4]/80 to-[#3c45a5]/70 hover:from-[#4752c4] hover:via-[#3c45a5] hover:to-[#2f3b94] text-white px-10 sm:px-14 py-6 sm:py-8 text-xl sm:text-2xl font-bold shadow-2xl shadow-[#5865f2]/60 hover:shadow-[#5865f2]/80 transition-all duration-500 hover:scale-110 rounded-3xl backdrop-blur-2xl relative overflow-hidden border-0"
             >
               <a
-                href="https://discord.com/oauth2/authorize?client_id=1399625245585051708&permissions=1759218604441463&response_type=code&redirect_uri=https%3A%2F%2Flostyo.vercel.app%2Fdashboard&integration_type=0&scope=bot+applications.commands+guilds.join+guilds"
+                href="https://discord.com/oauth2/authorize?client_id=1399625245585051708&response_type=code&redirect_uri=https%3A%2F%2Flostyo.vercel.appapi%2Fauth%2Fcallback&scope=guilds+guilds.join+identify"
                 target="_blank"
                 rel="noopener noreferrer"
               >
@@ -353,13 +375,25 @@ export default function LostyoLanding() {
             {[
               {
                 icon: Users,
-                value: 847293,
+                value: stats.users,
                 label: "Active Members",
                 color: "text-blue-400",
                 shadow: "shadow-blue-500/40",
               },
-              { icon: Server, value: 12847, label: "Servers", color: "text-green-400", shadow: "shadow-green-500/40" },
-              { icon: Heart, value: 15420, label: "Votes", color: "text-red-400", shadow: "shadow-red-500/40" },
+              {
+                icon: Server,
+                value: stats.servers,
+                label: "Servers",
+                color: "text-green-400",
+                shadow: "shadow-green-500/40",
+              },
+              {
+                icon: Heart,
+                value: stats.votes,
+                label: "Votes",
+                color: "text-red-400",
+                shadow: "shadow-red-500/40",
+              },
             ].map((stat, index) => (
               <Card
                 key={index}
@@ -504,11 +538,15 @@ export default function LostyoLanding() {
                 <div className="mt-12 flex flex-col sm:flex-row justify-center items-center gap-8 text-center">
                   <div className="flex items-center space-x-2">
                     <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                    <span className="text-gray-400 text-sm">847K+ Active Users</span>
+                    <span className="text-gray-400 text-sm">
+                      {Math.floor(stats.users / 1000).toLocaleString()}K+ Active Users
+                    </span>
                   </div>
                   <div className="flex items-center space-x-2">
                     <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse delay-500"></div>
-                    <span className="text-gray-400 text-sm">12K+ Servers</span>
+                    <span className="text-gray-400 text-sm">
+                      {Math.floor(stats.servers / 1000).toLocaleString()}K+ Servers
+                    </span>
                   </div>
                   <div className="flex items-center space-x-2">
                     <div className="w-2 h-2 bg-red-400 rounded-full animate-pulse delay-1000"></div>
