@@ -35,29 +35,6 @@ const Particles = () => {
     }>
   >([])
 
-  const [stats, setStats] = useState({
-    users: 0,
-    servers: 0,
-    votes: 0,
-  });
-
-    
-    useEffect(() => {
-      fetch("/api/bot/status")
-        .then((res) => res.json())
-        .then((data) => {
-          setStats({
-            users: data.users,
-            servers: data.servers,
-            votes: data.votes,
-          });
-        })
-        .catch((err) => {
-          console.error("Erro ao buscar status do bot:", err);
-        });
-    }, []);
-
-
   useEffect(() => {
     const colors = ["#5865f2", "#ffffff", "#8b9cff", "#c7d2fe", "#a78bfa", "#f472b6"]
     const generateParticles = () => {
@@ -211,6 +188,11 @@ const AnimatedCounter = ({ end, duration = 2000 }: { end: number; duration?: num
 
 export default function LostyoLanding() {
   const [isVisible, setIsVisible] = useState(false)
+  const [stats, setStats] = useState({
+    users: 0,
+    servers: 0,
+    votes: 0,
+  });
 
   const features = [
     {
@@ -256,11 +238,25 @@ export default function LostyoLanding() {
       shadow: "shadow-indigo-500/30",
     },
   ]
+  
+  useEffect(() => {
+    fetch("/api/bot/status")
+      .then((res) => res.json())
+      .then((data) => {
+        setStats({
+          users: data.users,
+          servers: data.servers,
+          votes: data.votes,
+        });
+      })
+      .catch((err) => {
+        console.error("Erro ao buscar status do bot:", err);
+      });
+  }, []);
 
   useEffect(() => {
     document.title = "Lostyo Bot - Transform Your Discord Server"
 
-    // Meta tags para SEO
     const metaDescription = document.querySelector('meta[name="description"]') || document.createElement("meta")
     metaDescription.setAttribute("name", "description")
     metaDescription.setAttribute(
@@ -269,14 +265,11 @@ export default function LostyoLanding() {
     )
     document.head.appendChild(metaDescription)
 
-   const favicon = (document.querySelector("link[rel*='icon']") as HTMLLinkElement) || document.createElement("link") as HTMLLinkElement;
-
-  favicon.type = "image/png";
-  favicon.rel = "shortcut icon";
-  favicon.href = "/lostyo-logo.png";
-
-  document.head.appendChild(favicon);
-
+    const favicon = (document.querySelector("link[rel*='icon']") as HTMLLinkElement) || document.createElement("link") as HTMLLinkElement;
+    favicon.type = "image/png";
+    favicon.rel = "shortcut icon";
+    favicon.href = "/lostyo-logo.png";
+    document.head.appendChild(favicon);
   }, [])
 
   useEffect(() => {
@@ -295,11 +288,11 @@ export default function LostyoLanding() {
     };
   }, []);
 
-
   useEffect(() => {
     setIsVisible(true)
   }, [])
 
+  return (
     <div className="min-h-screen bg-gradient-to-br from-gray-950 via-black to-gray-900 text-white overflow-hidden relative">
       <Particles />
 
@@ -331,7 +324,7 @@ export default function LostyoLanding() {
               className="group w-full sm:w-auto bg-gradient-to-r from-[#5865f2]/90 via-[#4752c4]/80 to-[#3c45a5]/70 hover:from-[#4752c4] hover:via-[#3c45a5] hover:to-[#2f3b94] text-white px-10 sm:px-14 py-6 sm:py-8 text-xl sm:text-2xl font-bold shadow-2xl shadow-[#5865f2]/60 hover:shadow-[#5865f2]/80 transition-all duration-500 hover:scale-110 rounded-3xl backdrop-blur-2xl relative overflow-hidden border-0"
             >
               <a
-                href="https://discord.com/oauth2/authorize?client_id=1399625245585051708&response_type=code&redirect_uri=https%3A%2F%2Flostyo.vercel.appapi%2Fauth%2Fcallback&scope=guilds+guilds.join+identify"
+                href="https://discord.com/oauth2/authorize?client_id=1399625245585051708&scope=bot%20applications.commands&response_type=code&redirect_uri=https://lostyo.vercel.app/api/auth/callback&permissions=1513962695871"
                 target="_blank"
                 rel="noopener noreferrer"
               >
@@ -510,7 +503,7 @@ export default function LostyoLanding() {
                     className="group bg-gradient-to-r from-[#5865f2] via-[#4752c4] to-[#3c45a5] hover:from-[#4752c4] hover:via-[#3c45a5] hover:to-[#2f3b94] text-white px-12 sm:px-16 py-6 sm:py-8 text-xl sm:text-2xl font-bold shadow-2xl shadow-[#5865f2]/60 hover:shadow-[#5865f2]/80 transition-all duration-700 hover:scale-125 rounded-3xl backdrop-blur-2xl relative overflow-hidden border-0"
                   >
                     <a
-                      href="https://discord.com/oauth2/authorize?client_id=1399625245585051708&permissions=1759218604441463&response_type=code&redirect_uri=https%3A%2F%2Flostyo.vercel.app%2Fdashboard&integration_type=0&scope=bot+applications.commands+guilds.join+guilds"
+                      href="https://discord.com/oauth2/authorize?client_id=1399625245585051708&scope=bot%20applications.commands&response_type=code&redirect_uri=https://lostyo.vercel.app/api/auth/callback&permissions=1513962695871"
                       target="_blank"
                       rel="noopener noreferrer"
                     >
