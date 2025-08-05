@@ -244,9 +244,9 @@ export default function LostyoLanding() {
       .then((res) => res.json())
       .then((data) => {
         setStats({
-          users: data.users,
-          servers: data.servers,
-          votes: data.votes,
+          users: data.users || 0,
+          servers: data.servers || 0,
+          votes: data.votes || 0,
         });
       })
       .catch((err) => {
@@ -263,13 +263,18 @@ export default function LostyoLanding() {
       "content",
       "Transform your Discord server with Lostyo - the ultimate bot for moderation, music, games, and community engagement.",
     )
-    document.head.appendChild(metaDescription)
+    if (!document.querySelector('meta[name="description"]')) {
+        document.head.appendChild(metaDescription)
+    }
 
-    const favicon = (document.querySelector("link[rel*='icon']") as HTMLLinkElement) || document.createElement("link") as HTMLLinkElement;
+    let favicon = document.querySelector("link[rel*='icon']") as HTMLLinkElement;
+    if (!favicon) {
+        favicon = document.createElement("link") as HTMLLinkElement;
+        document.head.appendChild(favicon);
+    }
     favicon.type = "image/png";
     favicon.rel = "shortcut icon";
     favicon.href = "/lostyo-logo.png";
-    document.head.appendChild(favicon);
   }, [])
 
   useEffect(() => {
@@ -592,25 +597,42 @@ export default function LostyoLanding() {
         </div>
       </footer>
 
-      {/* CSS customizado */}
+      {/* CSS customizado corrigido */}
       <style jsx global>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;400;500;600;700;800;900&display=swap');
         
         * {
           font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
           border: 0 !important;
+          scrollbar-width: none !important; /* Firefox */
+          -webkit-user-select: none !important; /* Safari */
+          -moz-user-select: none !important;    /* Firefox */
+          -ms-user-select: none !important;     /* IE10+ */
+          user-select: none !important;         /* Standard */
+        }
+        
+        /* Permite que o texto seja selecionado em campos de formulário */
+        input, textarea, select {
+          -webkit-user-select: text !important;
+          -moz-user-select: text !important;
+          -ms-user-select: text !important;
+          user-select: text !important;
+        }
+
+        /* Previne que imagens sejam arrastadas ou clicadas */
+        img {
+          -webkit-user-drag: none !important;
+          pointer-events: none !important;
         }
         
         .bg-gradient-radial {
           background: radial-gradient(circle, var(--tw-gradient-stops));
         }
         
-        /* Smooth scrolling */
         html {
           scroll-behavior: smooth;
         }
         
-        /* Custom scrollbar com blur */
         ::-webkit-scrollbar {
           width: 12px;
           border: none;
@@ -636,35 +658,12 @@ export default function LostyoLanding() {
           border: none;
         }
 
-        /* Sombras customizadas */
         .shadow-3xl {
           box-shadow: 0 35px 60px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.05);
         }
 
-        /* Remove todas as bordas */
         .border-0 {
           border: 0 !important;
-        }
-
-        /* Override para componentes shadcn */
-        .ui-card, .ui-button, .ui-card-content {
-          border: 0 !important;
-        }
-        * {
-          scrollbar-width: none !important;
-          -webkit-user-select: none !important; /* Safari */
-          -moz-user-select: none !important;    /* Firefox */
-          -ms-user-select: none !important;     /* IE10+ */
-          user-select: none !important;         /* Standard */
-        }
-          *:not(input):not(textarea):not(select) {
-          user-select: none !important;
-        }
-
-        img {
-          user-select: none !important;
-          -webkit-user-drag: none !important;
-          pointer-events: none !important;
         }
       `}</style>
     </div>
